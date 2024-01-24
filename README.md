@@ -32,7 +32,8 @@ There are some integration test cases added, I leveraged the boilerplate test fi
 Here are the steps I took for running and testing the code:
 - Run `minikube start` to start the cluster
 - Run `make docker-build docker-push` to build the docker image and push it to dockerhub
-- Run `make deploy` to deploy to k8s
+- Run `make deploy` to deploy to k8s 
+- Run `make install run` to start the app locally (while developing, I used this for faster results)
 - Run `kubectl apply -f config/samples/dummy.yaml` to create the Dummy Resource
 - Run `kubectl get pods -n a9s-challenge-system` to get the pods and their statuses
     - There should be one instance `a9s-challenge-controller-manager-<pod-hash>` with two ready containers in `Running` status, this is the pod related to the implemented controller 
