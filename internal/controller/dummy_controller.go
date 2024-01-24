@@ -18,11 +18,13 @@ package controller
 
 import (
 	"context"
+	"errors"
+	"time"
 
 	interviewv1alpha1 "github.com/bi6o/a9s-challenge/api/v1alpha1"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -53,70 +55,81 @@ type DummyReconciler struct {
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the Dummy object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.15.0/pkg/reconcile
 func (r *DummyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
 	dummy := &interviewv1alpha1.Dummy{}
 	if err := r.Get(ctx, req.NamespacedName, dummy); err != nil {
-		logger.Error(err, "failed to get dummy from k8s api", "Name", dummy.Name)
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		logger.Error(err, "Failed to get dummy from k8s api", "Name", dummy.Name)
+		return ctrl.Result{}, err
 	}
 
 	logger.Info("Reconciling Dummy", "Name", dummy.Name, "Namespace", dummy.Namespace, "Message", dummy.Spec.Message)
 
 	dummy.Status.SpecEcho = dummy.Spec.Message
 	if err := r.Status().Update(ctx, dummy); err != nil {
-		logger.Error(err, "failed to update dummy status", "Name", dummy.Name)
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		logger.Error(err, "Failed to update dummy status", "Name", dummy.Name)
+		return ctrl.Result{}, err
 	}
 
 	// Check if the pod already exists before creating a new one
 	existingPod := &corev1.Pod{}
 	err := r.Get(ctx, types.NamespacedName{Name: dummy.Name + "-pod", Namespace: dummy.Namespace}, existingPod)
 	switch {
-	case err != nil && errors.IsNotFound(err):
-		logger.Error(err, "failed to check if pod already exists", "Name", dummy.Name)
+	case err != nil && !k8serrors.IsNotFound(err):
+		logger.Error(err, "Failed to check if pod already exists", "Name", dummy.Name)
 		return ctrl.Result{}, err
 
 	case err == nil:
-		logger.Info("pod already exists, updating dummy status with existing pod status", "Name", dummy.Name)
+		logger.Info("Pod already exists, updating dummy status with existing pod status", "Name", dummy.Name)
 
 		dummy.Status.PodStatus = string(existingPod.Status.Phase)
 		if err := r.Status().Update(ctx, dummy); err != nil {
-			logger.Error(err, "failed to update dummy's pod status", "Name", dummy.Name)
-			return ctrl.Result{}, client.IgnoreNotFound(err)
+			logger.Error(err, "Failed to update dummy's pod status", "Name", dummy.Name)
+			return ctrl.Result{}, err
 		}
 
 		return ctrl.Result{}, nil
 	}
 
-	logger.Info("creating Pod for Dummy", "Name", dummy.Name)
+	logger.Info("Creating Pod for Dummy", "Name", dummy.Name)
 
 	pod, err := r.createPodForDummy(ctx, logger, dummy)
 	if err != nil {
-		logger.Error(err, "failed to create pod for dummy", "Name", dummy.Name)
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		logger.Error(err, "Failed to create pod for dummy", "Name", dummy.Name)
+		return ctrl.Result{}, err
 	}
 
-	if err := r.Get(ctx, types.NamespacedName{Name: pod.Name, Namespace: pod.Namespace}, pod); err != nil {
-		logger.Error(err, "failed to get pod from k8s api after creating it", "Name", pod.Name)
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+	pod, err = r.getPodWithRetry(ctx, pod)
+	if err != nil {
+		logger.Error(err, "Failed to get pod from k8 after creating it", "Name", pod.Name)
+		return ctrl.Result{}, err
 	}
 
 	dummy.Status.PodStatus = string(pod.Status.Phase)
 	if err := r.Status().Update(ctx, dummy); err != nil {
-		logger.Error(err, "failed to update dummy's pod status after creating it", "Name", dummy.Name)
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		logger.Error(err, "Failed to update dummy's pod status after creating it", "Name", dummy.Name)
+		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func (r *DummyReconciler) getPodWithRetry(ctx context.Context, pod *corev1.Pod) (*corev1.Pod, error) {
+	timeout := time.After(30 * time.Second)
+	tick := time.NewTicker(500 * time.Millisecond)
+
+	for {
+		select {
+		case <-timeout:
+			return nil, errors.New("timed out waiting for pod to be created")
+		case <-tick.C:
+			err := r.Get(ctx, types.NamespacedName{Name: pod.Name, Namespace: pod.Namespace}, pod)
+			if err == nil {
+				return pod, nil
+			}
+		}
+	}
 }
 
 func (r *DummyReconciler) createPodForDummy(ctx context.Context, logger logr.Logger, dummy *interviewv1alpha1.Dummy) (*corev1.Pod, error) {
@@ -130,9 +143,9 @@ func (r *DummyReconciler) createPodForDummy(ctx context.Context, logger logr.Log
 			Namespace: dummy.Namespace,
 			OwnerReferences: []metav1.OwnerReference{
 				{
-					APIVersion: dummy.APIVersion,
-					Kind:       dummy.Kind,
-					Name:       dummy.Name,
+					APIVersion: "interview.a9s-interview.com/v1alpha1",
+					Kind:       "Dummy",
+					Name:       "Dummy",
 					UID:        dummy.UID,
 				},
 			},

@@ -1,94 +1,44 @@
 # a9s-challenge
-// TODO(user): Add simple overview of use/purpose
+This document should serve as a step-by-step guide to running the challenge locally! Hopefully it works as expected 😅
 
 ## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+This project was built using the `operator-sdk` cli tool to get the boilerplate code. It creates a new type `Dummy` with a single Spec `Message`. It also sets the message to `I'm just a dummy`.
+
+I used the `operator-sdk` to initialize a new project, with domain `a9s-interview.com`, linked to this repo. I also used the sdk to create a new resource of kind `Dummy` in the `interview` group.
+
+I extended the generated controller and type files to accomodate the requirements. 
+
+I was also using `make generate` and `make manifests` to generate and update the goa dn yaml files managed by the sdk.
+
+- Added scaffolding comments to allow CRUD access to different k8s resources.
+- The controller gets the Dummy Resource and sets it's `SpecEcho` to it's Spec `Message`.
+- It also checks if there is an already existing `Pod` for the `Dummy` Resource.
+- If the pod exists: 
+    - the controller sets the `Dummy`'s `PodStatus` to the pod's `Status.Phase`
+- If the pod does not exist 
+    - The controller creates a new pod with `nginx:latest` image and references the `Dummy` resource
+    - It tries to get the `Pod` from k8s with a retry (every 500ms, for 30s)
+    - Finally it updates the `Dummy`'s `PodStatus` with the pod's `Status.Phase`
+
+There are some integration test cases added, I leveraged the boilerplate test file `internal/controller/suite_test.go`. To run the tests, simply run `make test`. I would have added more cases in a real life scenario!
+
+## Requirements
+- `minikube`
+- `kubectl`
+- `Docker`
+- `Make`
 
 ## Getting Started
-You’ll need a Kubernetes cluster to run against. You can use [KIND](https://sigs.k8s.io/kind) to get a local cluster for testing, or run against a remote cluster.
-**Note:** Your controller will automatically use the current context in your kubeconfig file (i.e. whatever cluster `kubectl cluster-info` shows).
-
-### Running on the cluster
-1. Install Instances of Custom Resources:
-
-```sh
-kubectl apply -f config/samples/
-```
-
-2. Build and push your image to the location specified by `IMG`:
-
-```sh
-make docker-build docker-push IMG=<some-registry>/a9s-challenge:tag
-```
-
-3. Deploy the controller to the cluster with the image specified by `IMG`:
-
-```sh
-make deploy IMG=<some-registry>/a9s-challenge:tag
-```
-
-### Uninstall CRDs
-To delete the CRDs from the cluster:
-
-```sh
-make uninstall
-```
-
-### Undeploy controller
-UnDeploy the controller from the cluster:
-
-```sh
-make undeploy
-```
-
-## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
-
-### How it works
-This project aims to follow the Kubernetes [Operator pattern](https://kubernetes.io/docs/concepts/extend-kubernetes/operator/).
-
-It uses [Controllers](https://kubernetes.io/docs/concepts/architecture/controller/),
-which provide a reconcile function responsible for synchronizing resources until the desired state is reached on the cluster.
-
-### Test It Out
-1. Install the CRDs into the cluster:
-
-```sh
-make install
-```
-
-2. Run your controller (this will run in the foreground, so switch to a new terminal if you want to leave it running):
-
-```sh
-make run
-```
-
-**NOTE:** You can also run this in one step by running: `make install run`
-
-### Modifying the API definitions
-If you are editing the API definitions, generate the manifests such as CRs or CRDs using:
-
-```sh
-make manifests
-```
-
-**NOTE:** Run `make --help` for more information on all potential `make` targets
-
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
-
-## License
-
-Copyright 2024.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
+Here are the steps I took for running and testing the code:
+- Run `minikube start` to start the cluster
+- Run `make docker-build docker-push` to build the docker image and push it to dockerhub
+- Run `make deploy` to deploy to k8s
+- Run `kubectl apply -f config/samples/dummy.yaml` to create the Dummy Resource
+- Run `kubectl get pods -n a9s-challenge-system` to get the pods and their statuses
+    - There should be one instance `a9s-challenge-controller-manager-<pod-hash>` with two ready containers in `Running` status, this is the pod related to the implemented controller 
+- Run `kubectl describe pod a9s-challenge-controller-manager-<pod-hash>` (cope from above) to see the logs from the controller 
+- Run `kubectl get dummy dummy -n default -o yaml` (yaml formatting is optional) to see the created `Dummy` resource
+    - It should have a spec message `I'm just a dummy`
+    - It should have a `status.specEcho` of `I'm just a dummy`
+    - It should have a `status.podStatus` of `Running`
+- Run `kubectl logs dummy-pod -n default` to see logs about the pod our controller created
