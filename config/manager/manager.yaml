@@ -70,7 +70,7 @@ spec:
         - /manager
         args:
         - --leader-elect
-        image: bi6o/a9s-challenge:0.0.4
+        image: bi6o/a9s-challenge:0.0.6
         name: manager
         securityContext:
           allowPrivilegeEscalation: false

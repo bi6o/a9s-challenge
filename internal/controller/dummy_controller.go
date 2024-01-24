@@ -143,9 +143,9 @@ func (r *DummyReconciler) createPodForDummy(ctx context.Context, logger logr.Log
 			Namespace: dummy.Namespace,
 			OwnerReferences: []metav1.OwnerReference{
 				{
-					APIVersion: "interview.a9s-interview.com/v1alpha1",
-					Kind:       "Dummy",
-					Name:       "Dummy",
+					APIVersion: dummy.APIVersion,
+					Kind:       dummy.Kind,
+					Name:       dummy.Name,
 					UID:        dummy.UID,
 				},
 			},

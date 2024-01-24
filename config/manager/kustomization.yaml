@@ -5,4 +5,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: bi6o/a9s-challenge
-  newTag: 0.0.4
+  newTag: 0.0.6
