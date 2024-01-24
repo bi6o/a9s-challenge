@@ -37,7 +37,7 @@ Here are the steps I took for running and testing the code:
 - Run `kubectl apply -f config/samples/dummy.yaml` to create the Dummy Resource
 - Run `kubectl get pods -n a9s-challenge-system` to get the pods and their statuses
     - There should be one instance `a9s-challenge-controller-manager-<pod-hash>` with two ready containers in `Running` status, this is the pod related to the implemented controller 
-- Run `kubectl describe pod a9s-challenge-controller-manager-<pod-hash>` (cope from above) to see the logs from the controller 
+- Run `kubectl describe pod a9s-challenge-controller-manager-<pod-hash>` (copy from above) to see the logs from the controller 
 - Run `kubectl get dummy dummy -n default -o yaml` (yaml formatting is optional) to see the created `Dummy` resource
     - It should have a spec message `I'm just a dummy`
     - It should have a `status.specEcho` of `I'm just a dummy`
